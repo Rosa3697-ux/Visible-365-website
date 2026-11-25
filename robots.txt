@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://visible365us.com/sitemap.xml
