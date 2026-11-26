@@ -2,7 +2,8 @@
 const origin = "https://deploy-preview-1--dreamy-dragon-e82e3e.netlify.app";
 const ROOT = Deno.env.get("SUPABASE_URL") || "";
 function key(name:string){try{return JSON.parse(Deno.env.get(name)||"{}").default||""}catch{return ""}}
-const publishable=key("SUPABASE_PUBLISHABLE_KEYS"),secret=key("SUPABASE_SECRET_KEYS");
+// Temporary sandbox compatibility: gateway rejected the registered publishable key.
+const publishable=Deno.env.get("SUPABASE_ANON_KEY")||key("SUPABASE_PUBLISHABLE_KEYS"),secret=key("SUPABASE_SECRET_KEYS");
 const headers={"content-type":"application/json; charset=utf-8","cache-control":"no-store","x-content-type-options":"nosniff","access-control-allow-origin":origin,"access-control-allow-methods":"POST, OPTIONS","access-control-allow-headers":"authorization, apikey, content-type","vary":"Origin"};
 const respond=(status:number,data:unknown)=>new Response(JSON.stringify(data),{status,headers});
 const err=(status:number,message:string)=>Object.assign(new Error(message),{status});
