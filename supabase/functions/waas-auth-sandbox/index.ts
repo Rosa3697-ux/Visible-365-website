@@ -52,17 +52,23 @@ Deno.serve(async req=>{
      db("waas_orders?"+own+"&select=id,plan,stage,scope,terms_version,accepted_at"),
      db("waas_projects?"+own+"&select=stage,preview_url,live_url,updated_at"),
      db("waas_requests?"+own+"&select=id,category,details,status,minutes,reply,created_at&order=created_at.desc&limit=50")]);
-   return respond(200,{account:accounts[0]||null,order:orders[0]||null,project:projects[0]||null,requests,admin:false,billing_enabled:false});
+   return respond(200,{account:accounts[0]||null,order:orders[0]||null,project:projects[0]||null,requests,admin:false,billing_enabled:false,simulation_enabled:Deno.env.get("WAAS_ENABLE_SIMULATED_SUBSCRIPTIONS")==="true"});
   }
   if(b.action==="signup"){
    if(!["essential","growth"].includes(b.plan)||!["en","es"].includes(b.language))throw err(400,"Invalid plan or language");
    await db("rpc/waas_signup","POST",{p_user:u.id,p_business:input(b.business,120,1),p_language:b.language,p_industry:input(b.industry,80,1),p_website:input(b.website||"",300),p_notes:input(b.notes||"",3000),p_plan:b.plan});
    return respond(200,{ok:true});
   }
+  if(b.action==="sandbox_activate"){
+   if(Deno.env.get("WAAS_ENABLE_SIMULATED_SUBSCRIPTIONS")!=="true")throw err(403,"Simulation disabled");
+   const result=await db("waas_orders?"+own+"&stage=eq.requested&stripe_subscription_id=is.null&stripe_customer_id=is.null","PATCH",{stage:"active",stripe_status:"sandbox_simulated"});
+   if(result.length!==1)throw err(409,"No eligible test subscription");
+   return respond(200,{ok:true});
+  }
   if(b.action==="intake_save"){
    if(!Number.isSafeInteger(b.revision)||b.revision<0||typeof b.submit!=="boolean")throw err(400,"Invalid revision");
    const [accounts,orders]=await Promise.all([db("waas_accounts?"+own+"&select=business_name,industry,intake_state,intake_revision"),db("waas_orders?"+own+"&select=plan,stage")]);
-   const a=accounts[0],o=orders[0];if(!a||!o||o.stage!=="requested"||a.intake_state!=="draft"||a.intake_revision!==b.revision)throw err(409,"Draft changed or is not editable");
+   const a=accounts[0],o=orders[0];if(!a||!o||o.stage!=="active"||a.intake_state!=="draft"||a.intake_revision!==b.revision)throw err(409,"Draft changed or is not editable");
    let checked;try{checked=Intake.normalize(b.answers,o.plan,b.submit)}catch(e){throw err(400,(e as Error).message)}
    const update={intake_answers:checked.answers,intake_revision:b.revision+1,...(b.submit?{intake_state:"submitted",intake_brief:Intake.brief(a,o.plan,checked.answers),intake_submitted_at:new Date().toISOString()}:{})};
    const result=await db("waas_accounts?"+own+"&intake_state=eq.draft&intake_revision=eq."+b.revision,"PATCH",update);
